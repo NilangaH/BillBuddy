@@ -1,0 +1,16 @@
+
+appId: com.billbuddy.app
+productName: "Bill Buddy"
+files:
+  - "build/**/*"
+  - "electron.js"
+  - "package.json"
+directories:
+  buildResources: "resources"
+  output: "dist"
+win:
+  target: nsis
+  icon: "icon.png"
+  cscLink: null
+  cscKeyPassword: null
+  signAndEditExecutable: false
