@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -57,7 +56,6 @@ function generateNewTransactionNo(payments: Payment[]): string {
 }
 
 export default function HomePage() {
-  const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isPermanentlyActivated, setIsPermanentlyActivated] = useState<boolean>(false);
   const [isTrial, setIsTrial] = useState<boolean>(false);

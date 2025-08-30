@@ -93,7 +93,7 @@ export default function LoginPage() {
        localStorage.removeItem('isTrial');
     }
     // This is the corrected navigation call for Electron
-    window.location.href = './index.html';
+    window.location.href = './';
   };
 
   const handleActivate = (licenseKey: string) => {
