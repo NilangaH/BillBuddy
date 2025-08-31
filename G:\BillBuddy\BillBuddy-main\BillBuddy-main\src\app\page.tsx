@@ -77,7 +77,7 @@ export default function HomePage() {
       setUserRole(role);
     } else {
       // This is the corrected navigation call for Electron
-      window.location.href = './login/index.html';
+      window.location.href = './login/';
     }
   }, []);
 
@@ -327,7 +327,7 @@ export default function HomePage() {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
     // This is the corrected navigation call for Electron
-    window.location.href = './login/index.html';
+    window.location.href = './login/';
   }
 
 
