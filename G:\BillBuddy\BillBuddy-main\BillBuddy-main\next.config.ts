@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   output: 'export',
   distDir: 'build',
   trailingSlash: true, // Important for Electron routing
+  assetPrefix: './', // Crucial for Electron to find static assets
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -28,8 +29,7 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
-        protocol: 'https',
-        hostname: 'upload.wikimedia.org',
+        protocol: 'https://upload.wikimedia.org',
         port: '',
         pathname: '/**',
       },
