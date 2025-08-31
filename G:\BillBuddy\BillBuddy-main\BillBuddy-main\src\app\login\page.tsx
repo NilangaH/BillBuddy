@@ -34,7 +34,6 @@ export default function LoginPage() {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('userRole', userRole);
     // This is the corrected navigation call for Electron.
-    // It navigates to the 'index.html' file in the root of the 'build' directory.
     window.location.href = './';
   };
 
