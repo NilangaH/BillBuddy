@@ -16,7 +16,6 @@
     "package": "npm run build && electron-builder"
   },
   "dependencies": {
-    "@fingerprintjs/fingerprintjs": "^4.4.1",
     "@genkit-ai/googleai": "^1.14.1",
     "@genkit-ai/next": "^1.14.1",
     "@hookform/resolvers": "^4.1.3",

@@ -15,7 +15,7 @@ import { PrintableReceipt } from '@/components/printable-receipt';
 import { SettingsDialog } from '@/components/settings-dialog';
 import { Button } from '@/components/ui/button';
 import type { Utility, Bill, Payment, Settings, UserRole } from '@/lib/types';
-import { Settings as SettingsIcon, History, Loader2, LogOut, ShieldCheck } from 'lucide-react';
+import { Settings as SettingsIcon, History, Loader2, LogOut } from 'lucide-react';
 import { isToday, parseISO, isWithinInterval } from 'date-fns';
 import { DEFAULT_SETTINGS } from '@/lib/config';
 import Image from 'next/image';
@@ -57,8 +57,6 @@ function generateNewTransactionNo(payments: Payment[]): string {
 
 export default function HomePage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [isPermanentlyActivated, setIsPermanentlyActivated] = useState<boolean>(false);
-  const [isTrial, setIsTrial] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [selectedUtility, setSelectedUtility] = useState<Utility | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -73,15 +71,10 @@ export default function HomePage() {
   // Check for authentication
   useEffect(() => {
     const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    const isActivated = localStorage.getItem('isActivated') === 'true';
-    const isTrialPeriod = localStorage.getItem('isTrial') === 'true';
-    
-    if (loggedIn && (isActivated || isTrialPeriod)) {
+    if (loggedIn) {
       setIsAuthenticated(true);
-      setIsPermanentlyActivated(isActivated);
       const role = localStorage.getItem('userRole') as UserRole | null;
       setUserRole(role);
-      setIsTrial(isTrialPeriod);
     } else {
       // This is the corrected navigation call for Electron
       window.location.href = './login/index.html';
@@ -333,8 +326,6 @@ export default function HomePage() {
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
-    localStorage.removeItem('isTrial');
-    localStorage.removeItem('isActivated');
     // This is the corrected navigation call for Electron
     window.location.href = './login/index.html';
   }
@@ -386,15 +377,12 @@ export default function HomePage() {
               <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground">
                 {settings.shopDetails.shopName}
               </h1>
-              {isPermanentlyActivated && (
-                <ShieldCheck className="h-7 w-7 text-green-500" />
-              )}
             </div>
             <p className="text-muted-foreground mt-2">
               Your friendly neighborhood bill payment assistant.
             </p>
             <div className="absolute top-0 right-0 flex gap-2">
-              {isAdmin && !isTrial && (
+              {isAdmin && (
                 <>
                   <Button variant="ghost" size="icon" onClick={() => setViewMode('reports')}>
                     <History />
