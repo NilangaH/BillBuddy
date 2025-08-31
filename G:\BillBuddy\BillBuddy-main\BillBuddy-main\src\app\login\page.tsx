@@ -11,23 +11,26 @@ export default function LoginPage() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
+    // Attempt to load stored settings for theme/shop details, but always use default users
     const storedSettings = localStorage.getItem('billBuddySettings');
+    let baseSettings = DEFAULT_SETTINGS;
     if (storedSettings) {
       try {
         const parsedSettings = JSON.parse(storedSettings);
-         const mergedSettings: Settings = {
-          ...DEFAULT_SETTINGS,
-          ...parsedSettings,
-          // Always load default users to prevent login issues
-          users: getDefaultUsers(), 
-        };
-        setSettings(mergedSettings);
+        baseSettings = { ...baseSettings, ...parsedSettings };
       } catch (e) {
-        setSettings(DEFAULT_SETTINGS);
+        // Fallback to default if stored settings are corrupt
+        baseSettings = DEFAULT_SETTINGS;
       }
-    } else {
-        setSettings(DEFAULT_SETTINGS);
     }
+    
+    // Crucially, always overwrite with default users to guarantee login is possible
+    const finalSettings: Settings = {
+      ...baseSettings,
+      users: getDefaultUsers(),
+    };
+    setSettings(finalSettings);
+
   }, []);
 
   const handleLoginSuccess = (userRole: string) => {
