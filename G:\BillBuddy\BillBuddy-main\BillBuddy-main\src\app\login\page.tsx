@@ -5,7 +5,7 @@ import { LoginForm } from '@/components/login-form';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import type { Settings } from '@/lib/types';
-import { DEFAULT_SETTINGS } from '@/lib/config';
+import { DEFAULT_SETTINGS, getDefaultUsers } from '@/lib/config';
 
 export default function LoginPage() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -18,6 +18,8 @@ export default function LoginPage() {
          const mergedSettings: Settings = {
           ...DEFAULT_SETTINGS,
           ...parsedSettings,
+          // Always load default users to prevent login issues
+          users: getDefaultUsers(), 
         };
         setSettings(mergedSettings);
       } catch (e) {

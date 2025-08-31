@@ -15,8 +15,6 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      // The preload script is not needed for this simple navigation.
-      // preload: path.join(__dirname, 'preload.js'),
     },
     title: 'Bill Buddy'
   });
@@ -30,7 +28,7 @@ function createWindow() {
   } else {
     // In production, load the static HTML file from the 'build' directory.
     // The path should point to the entry point of your app, which is login.
-    const prodPath = path.join(__dirname, 'build', 'login/index.html');
+    const prodPath = path.join(__dirname, 'build', 'login', 'index.html');
     mainWindow.loadFile(prodPath);
   }
 

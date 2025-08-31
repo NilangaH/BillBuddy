@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
   output: 'export',
   distDir: 'build',
   trailingSlash: true, // Important for Electron routing
-  assetPrefix: './', // Important for Electron routing
   typescript: {
     ignoreBuildErrors: true,
   },
