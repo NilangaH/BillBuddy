@@ -9,10 +9,10 @@ import { DEFAULT_SETTINGS } from '@/lib/config';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Copy, ShieldCheck, Clock } from 'lucide-react';
+import { Copy, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { differenceInDays, addDays } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 
 const TRIAL_PERIOD_DAYS = 20;
 const ACTIVATION_SUFFIX = '-NH19880529';
@@ -92,7 +92,8 @@ export default function LoginPage() {
     } else {
        localStorage.removeItem('isTrial');
     }
-    // This is the corrected navigation call for Electron
+    // This is the corrected navigation call for Electron.
+    // It navigates to the 'index.html' file in the root of the 'build' directory.
     window.location.href = './';
   };
 

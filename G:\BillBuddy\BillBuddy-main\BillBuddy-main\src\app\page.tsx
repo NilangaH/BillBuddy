@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -15,7 +15,7 @@ import { PrintableReceipt } from '@/components/printable-receipt';
 import { SettingsDialog } from '@/components/settings-dialog';
 import { Button } from '@/components/ui/button';
 import type { Utility, Bill, Payment, Settings, UserRole } from '@/lib/types';
-import { Settings as SettingsIcon, History, Loader2, Home, LogOut, ShieldCheck } from 'lucide-react';
+import { Settings as SettingsIcon, History, Loader2, LogOut, ShieldCheck } from 'lucide-react';
 import { isToday, parseISO, isWithinInterval } from 'date-fns';
 import { DEFAULT_SETTINGS } from '@/lib/config';
 import Image from 'next/image';
@@ -84,7 +84,7 @@ export default function HomePage() {
       setIsTrial(isTrialPeriod);
     } else {
       // This is the corrected navigation call for Electron
-      window.location.href = './login.html';
+      window.location.href = './login/index.html';
     }
   }, []);
 
@@ -336,7 +336,7 @@ export default function HomePage() {
     localStorage.removeItem('isTrial');
     localStorage.removeItem('isActivated');
     // This is the corrected navigation call for Electron
-    window.location.href = './login.html';
+    window.location.href = './login/index.html';
   }
 
 
