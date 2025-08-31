@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -56,6 +57,7 @@ function generateNewTransactionNo(payments: Payment[]): string {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [selectedUtility, setSelectedUtility] = useState<Utility | null>(null);
@@ -76,10 +78,9 @@ export default function HomePage() {
       const role = localStorage.getItem('userRole') as UserRole | null;
       setUserRole(role);
     } else {
-      // This is the corrected navigation call for Electron
-      window.location.href = './login/';
+      router.push('/login');
     }
-  }, []);
+  }, [router]);
 
   // Load settings and payments from localStorage on initial render
   useEffect(() => {
@@ -105,7 +106,6 @@ export default function HomePage() {
             paymentLinks: { ...DEFAULT_SETTINGS.paymentLinks, ...(parsedSettings.paymentLinks || {}) },
             serviceCharges: parsedSettings.serviceCharges || DEFAULT_SETTINGS.serviceCharges,
             shopDetails: { ...DEFAULT_SETTINGS.shopDetails, ...(parsedSettings.shopDetails || {}) },
-            // Always load default users to prevent login issues from old stored settings
             users: getDefaultUsers(),
             printSize: parsedSettings.printSize || DEFAULT_SETTINGS.printSize,
             showBalanceCalculator: parsedSettings.showBalanceCalculator || false,
@@ -136,7 +136,7 @@ export default function HomePage() {
 
       try {
           const canvas = await html2canvas(receiptElement, {
-              scale: 2, // Higher scale for better quality
+              scale: 2,
               useCORS: true,
               allowTaint: true,
               backgroundColor: '#ffffff',
@@ -157,7 +157,6 @@ export default function HomePage() {
             });
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
           } else {
-            // A5 size
             pdf = new jsPDF({
               orientation: 'portrait',
               unit: 'mm',
@@ -177,7 +176,7 @@ export default function HomePage() {
             printWindow.onload = () => {
               setTimeout(() => {
                 printWindow.print();
-              }, 500); // A short delay can help ensure content is loaded
+              }, 500); 
             };
           }
 
@@ -191,7 +190,6 @@ export default function HomePage() {
 
   useEffect(() => {
     if (paymentForPrint && isPrinting) {
-      // The generate function is called in useEffect to ensure the DOM is updated.
       generateAndShowPdf();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -220,11 +218,9 @@ export default function HomePage() {
         setPayments(updatedPayments);
         localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
     } else {
-      // Clear all
       setPayments([]);
       localStorage.removeItem('billBuddyPayments');
     }
-    // No need to close the dialog here, let the user do it
   };
 
 
@@ -269,7 +265,6 @@ export default function HomePage() {
   };
 
   const handleConfirmAndPrint = (paymentData: Payment) => {
-    // Add to payments list if it's not already there
     if (!payments.some(p => p.id === paymentData.id)) {
       const finalPayment = { ...paymentData, status: 'Pending' as 'Pending' };
       const updatedPayments = [finalPayment, ...payments];
@@ -277,16 +272,15 @@ export default function HomePage() {
       localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
       setPaymentForPrint(finalPayment);
     } else {
-      // If it exists, it might just be an update (e.g. adding paidAmount), so update it
        const updatedPayments = payments.map(p => p.id === paymentData.id ? paymentData : p);
        setPayments(updatedPayments);
        localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
        setPaymentForPrint(paymentData);
     }
     
-    setIsPrinting(true); // This will trigger the useEffect
+    setIsPrinting(true);
     setPreviewData(null);
-    setSelectedUtility(null); // Reset to home
+    setSelectedUtility(null);
     
     if (settings.sendSmsOnConfirm) {
         const message = `Dear ${paymentData.accountName}, Thank you for your payment of LKR ${paymentData.amount.toFixed(2)} for your ${paymentData.utility} bill. Your Transaction No is ${paymentData.transactionNo}. - ${settings.shopDetails.shopName}`;
@@ -297,7 +291,7 @@ export default function HomePage() {
   
   const handleReprint = (payment: Payment) => {
     setPaymentForPrint(payment);
-    setIsPrinting(true); // This will trigger the useEffect
+    setIsPrinting(true);
   };
 
   const handleClosePreview = () => {
@@ -317,8 +311,7 @@ export default function HomePage() {
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('userRole');
-    // This is the corrected navigation call for Electron
-    window.location.href = './login/';
+    router.push('/login');
   }
 
 
@@ -483,7 +476,6 @@ export default function HomePage() {
         )}
       </main>
       
-      {/* Off-screen container for the printable receipt to live in the DOM for capturing */}
       <div className={`absolute -left-[9999px] -top-[9999px] h-auto ${settings.printSize === '80mm' ? 'w-[80mm]' : 'w-[148mm]'}`}>
            <div id="printable-receipt-content">
              {paymentForPrint && <PrintableReceipt payment={paymentForPrint} settings={settings} />}

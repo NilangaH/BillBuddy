@@ -6,8 +6,10 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import type { Settings } from '@/lib/types';
 import { DEFAULT_SETTINGS, getDefaultUsers } from '@/lib/config';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
@@ -36,8 +38,9 @@ export default function LoginPage() {
   const handleLoginSuccess = (userRole: string) => {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('userRole', userRole);
-    // This is the corrected navigation call for Electron.
-    window.location.href = './';
+    // For Electron, useRouter.push('/') is preferred.
+    // If that causes issues, window.location.href = './' is the fallback.
+    router.push('/');
   };
 
   return (
