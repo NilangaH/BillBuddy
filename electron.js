@@ -7,39 +7,40 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-    },
-    title: 'Bill Buddy'
-  });
+      width: 1200,
+          height: 800,
+              webPreferences: {
+                    nodeIntegration: false,
+                          contextIsolation: true,
+                              },
+                                  title: 'Bill Buddy'
+                                    });
 
-  if (isDev) {
-    // In development, load the Next.js server
-    mainWindow.loadURL('http://localhost:9002');
-  } else {
-    // In production, load the exported files
-    mainWindow.loadFile(path.join(__dirname, 'build/index.html'));
-  }
-  
-  // Always open DevTools to help with debugging.
-  mainWindow.webContents.openDevTools();
+                                      if (isDev) {
+                                          // In development, load the Next.js server
+                                              mainWindow.loadURL('http://localhost:9002');
+                                                } else {
+                                                    // In production, load the exported files
+                                                        mainWindow.loadFile(path.join(__dirname, 'build/index.html'));
+                                                          }
+                                                            
+                                                              // Always open DevTools to help with debugging.
+                                                                mainWindow.webContents.openDevTools();
 
-  mainWindow.on('closed', () => (mainWindow = null));
-}
+                                                                  mainWindow.on('closed', () => (mainWindow = null));
+                                                                  }
 
-app.on('ready', createWindow);
+                                                                  app.on('ready', createWindow);
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+                                                                  app.on('window-all-closed', () => {
+                                                                    if (process.platform !== 'darwin') {
+                                                                        app.quit();
+                                                                          }
+                                                                          });
 
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
-  }
-});
+                                                                          app.on('activate', () => {
+                                                                            if (mainWindow === null) {
+                                                                                createWindow();
+                                                                                  }
+                                                                                  });
+                                                                                  
