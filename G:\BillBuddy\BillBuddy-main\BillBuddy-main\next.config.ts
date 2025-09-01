@@ -3,10 +3,6 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'export',
-  distDir: 'build',
-  trailingSlash: true, // Important for Electron routing
-  assetPrefix: './', // Crucial for Electron to find static assets
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -14,7 +10,6 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   images: {
-    unoptimized: true,
     remotePatterns: [
       {
         protocol: 'https',

@@ -38,8 +38,7 @@ export default function LoginPage() {
   const handleLoginSuccess = (userRole: string) => {
     localStorage.setItem('isLoggedIn', 'true');
     localStorage.setItem('userRole', userRole);
-    // For Electron, navigate up to the root where the main index.html is.
-    window.location.href = '../';
+    router.push('/');
   };
 
   return (
