@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 export type Utility = 'LECO' | 'CEB' | 'Water';

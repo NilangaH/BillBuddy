@@ -1,4 +1,3 @@
-
 import type { Settings, ShopDetails, UtilityLogos, UtilityPaymentLinks, User } from './types';
 
 export const getDefaultLogos = (): UtilityLogos => ({
@@ -30,9 +29,9 @@ export const getDefaultUsers = (): User[] => ([
   },
   {
     id: 'user-2',
-    username: 'administrator',
-    password: 'adminpass',
-    role: 'admin',
+    username: 'user',
+    password: 'password',
+    role: 'user',
   }
 ]);
 

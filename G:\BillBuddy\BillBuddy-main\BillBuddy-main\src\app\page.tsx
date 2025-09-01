@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -18,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import type { Utility, Bill, Payment, Settings, UserRole } from '@/lib/types';
 import { Settings as SettingsIcon, History, Loader2, LogOut } from 'lucide-react';
 import { isToday, parseISO, isWithinInterval } from 'date-fns';
-import { DEFAULT_SETTINGS, getDefaultUsers } from '@/lib/config';
+import { DEFAULT_SETTINGS } from '@/lib/config';
 import Image from 'next/image';
 
 function getUserIdByPhone(phoneNo: string, payments: Payment[]): string | null {
@@ -106,7 +105,7 @@ export default function HomePage() {
             paymentLinks: { ...DEFAULT_SETTINGS.paymentLinks, ...(parsedSettings.paymentLinks || {}) },
             serviceCharges: parsedSettings.serviceCharges || DEFAULT_SETTINGS.serviceCharges,
             shopDetails: { ...DEFAULT_SETTINGS.shopDetails, ...(parsedSettings.shopDetails || {}) },
-            users: getDefaultUsers(),
+            users: parsedSettings.users || DEFAULT_SETTINGS.users,
             printSize: parsedSettings.printSize || DEFAULT_SETTINGS.printSize,
             showBalanceCalculator: parsedSettings.showBalanceCalculator || false,
             sendSmsOnConfirm: parsedSettings.sendSmsOnConfirm || false,

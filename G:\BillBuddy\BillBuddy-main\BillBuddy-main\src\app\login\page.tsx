@@ -1,38 +1,34 @@
-
 'use client';
 
 import { LoginForm } from '@/components/login-form';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import type { Settings } from '@/lib/types';
-import { DEFAULT_SETTINGS, getDefaultUsers } from '@/lib/config';
-import { useRouter } from 'next/navigation';
+import { DEFAULT_SETTINGS } from '@/lib/config';
 
 export default function LoginPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
 
   useEffect(() => {
-    // Attempt to load stored settings for theme/shop details, but always use default users
+    // Load settings from localStorage
     const storedSettings = localStorage.getItem('billBuddySettings');
-    let baseSettings = DEFAULT_SETTINGS;
     if (storedSettings) {
       try {
         const parsedSettings = JSON.parse(storedSettings);
-        baseSettings = { ...baseSettings, ...parsedSettings };
+        const mergedSettings: Settings = {
+          ...DEFAULT_SETTINGS,
+          ...parsedSettings,
+          users: parsedSettings.users || DEFAULT_SETTINGS.users, // Ensure users are loaded
+        };
+        setSettings(mergedSettings);
       } catch (e) {
-        // Fallback to default if stored settings are corrupt
-        baseSettings = DEFAULT_SETTINGS;
+        setSettings(DEFAULT_SETTINGS);
       }
+    } else {
+      setSettings(DEFAULT_SETTINGS);
     }
-    
-    // Crucially, always overwrite with default users to guarantee login is possible
-    const finalSettings: Settings = {
-      ...baseSettings,
-      users: getDefaultUsers(),
-    };
-    setSettings(finalSettings);
-
   }, []);
 
   const handleLoginSuccess = (userRole: string) => {
