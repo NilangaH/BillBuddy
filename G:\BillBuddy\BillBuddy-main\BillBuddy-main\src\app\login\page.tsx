@@ -40,7 +40,7 @@ export default function LoginPage() {
     localStorage.setItem('userRole', userRole);
     // For Electron, useRouter.push('/') is preferred.
     // If that causes issues, window.location.href = './' is the fallback.
-    router.push('/');
+    window.location.href = '../';
   };
 
   return (
