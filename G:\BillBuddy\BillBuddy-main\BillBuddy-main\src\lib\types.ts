@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 export type Utility = 'LECO' | 'CEB' | 'Water';
@@ -14,7 +15,7 @@ export type Bill = z.infer<typeof billSchema>;
 export type PaymentStatus = 'Paid' | 'Pending';
 
 export type Payment = Bill & {
-  id: string;
+  id: string; // Firestore document ID
   userId: string;
   utility: Utility;
   date: string;
@@ -23,6 +24,7 @@ export type Payment = Bill & {
   transactionNo: string;
   referenceNo?: string;
   paidAmount?: number;
+  ownerUid?: string; // Firebase Auth User ID
 };
 
 export type UtilityLogos = {
@@ -68,3 +70,5 @@ export type Settings = {
   printSize: PrintSize;
   sendSmsOnConfirm: boolean;
 };
+
+    

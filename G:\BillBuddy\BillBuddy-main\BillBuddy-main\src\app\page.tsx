@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
@@ -19,8 +20,10 @@ import { Settings as SettingsIcon, History, Loader2, LogOut } from 'lucide-react
 import { isToday, parseISO, isWithinInterval } from 'date-fns';
 import { DEFAULT_SETTINGS } from '@/lib/config';
 import Image from 'next/image';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, addDoc, query, where, getDocs, doc, updateDoc, writeBatch } from 'firebase/firestore';
+
 
 function getUserIdByPhone(phoneNo: string, payments: Payment[]): string | null {
   const existingPayment = payments.find(p => p.phoneNo === phoneNo);
@@ -63,6 +66,7 @@ export default function HomePage() {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [selectedUtility, setSelectedUtility] = useState<Utility | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(true);
   const [previewData, setPreviewData] = useState<Payment | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
@@ -71,61 +75,71 @@ export default function HomePage() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [paymentForPrint, setPaymentForPrint] = useState<Payment | null>(null);
   
-  // Check for authentication
+  const fetchPayments = useCallback(async (userId: string) => {
+    setIsLoadingPayments(true);
+    try {
+      const q = query(collection(db, "payments"), where("ownerUid", "==", userId));
+      const querySnapshot = await getDocs(q);
+      const userPayments: Payment[] = [];
+      querySnapshot.forEach((doc) => {
+        userPayments.push({ id: doc.id, ...doc.data() } as Payment);
+      });
+      setPayments(userPayments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    } catch (error) {
+      console.error("Error fetching payments: ", error);
+      setPayments([]);
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        setAuthUser({
+        const userWithRole: AuthUser = {
           uid: user.uid,
           email: user.email,
-          role: 'admin', // For now, all logged in users are admins
-        });
+          role: 'admin', // Placeholder, role management to be implemented
+        };
+        setAuthUser(userWithRole);
+        fetchPayments(user.uid);
       } else {
         setAuthUser(null);
+        setPayments([]);
         router.push('/login');
       }
       setIsLoadingAuth(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [router]);
+  }, [router, fetchPayments]);
 
-  // Load settings and payments from localStorage on initial render
+  // Load settings from localStorage
   useEffect(() => {
     if (authUser) {
-      const storedPayments = localStorage.getItem('billBuddyPayments');
-      if (storedPayments) {
-        try {
-          setPayments(JSON.parse(storedPayments));
-        } catch (e) {
-          setPayments([]);
-        }
-      }
-
-      const storedSettings = localStorage.getItem('billBuddySettings');
-      if (storedSettings) {
-        try {
-          const parsedSettings = JSON.parse(storedSettings);
-          
-          const mergedSettings: Settings = {
-            ...DEFAULT_SETTINGS,
-            ...parsedSettings,
-            logos: { ...DEFAULT_SETTINGS.logos, ...parsedSettings.logos },
-            paymentLinks: { ...DEFAULT_SETTINGS.paymentLinks, ...(parsedSettings.paymentLinks || {}) },
-            serviceCharges: parsedSettings.serviceCharges || DEFAULT_SETTINGS.serviceCharges,
-            shopDetails: { ...DEFAULT_SETTINGS.shopDetails, ...(parsedSettings.shopDetails || {}) },
-            printSize: parsedSettings.printSize || DEFAULT_SETTINGS.printSize,
-            showBalanceCalculator: parsedSettings.showBalanceCalculator || false,
-            sendSmsOnConfirm: parsedSettings.sendSmsOnConfirm || false,
-          };
-          setSettings(mergedSettings);
-        } catch (e) {
-          setSettings(DEFAULT_SETTINGS);
-        }
-      } else {
-        setSettings(DEFAULT_SETTINGS);
-      }
+       const storedSettings = localStorage.getItem('billBuddySettings');
+       if (storedSettings) {
+         try {
+           const parsedSettings = JSON.parse(storedSettings);
+           
+           const mergedSettings: Settings = {
+             ...DEFAULT_SETTINGS,
+             ...parsedSettings,
+             logos: { ...DEFAULT_SETTINGS.logos, ...parsedSettings.logos },
+             paymentLinks: { ...DEFAULT_SETTINGS.paymentLinks, ...(parsedSettings.paymentLinks || {}) },
+             serviceCharges: parsedSettings.serviceCharges || DEFAULT_SETTINGS.serviceCharges,
+             shopDetails: { ...DEFAULT_SETTINGS.shopDetails, ...(parsedSettings.shopDetails || {}) },
+             printSize: parsedSettings.printSize || DEFAULT_SETTINGS.printSize,
+             showBalanceCalculator: parsedSettings.showBalanceCalculator || false,
+             sendSmsOnConfirm: parsedSettings.sendSmsOnConfirm || false,
+           };
+           setSettings(mergedSettings);
+         } catch (e) {
+           setSettings(DEFAULT_SETTINGS);
+         }
+       } else {
+         setSettings(DEFAULT_SETTINGS);
+       }
     }
   }, [authUser]);
   
@@ -210,27 +224,35 @@ export default function HomePage() {
     setIsSettingsOpen(false);
   };
   
-  const handleClearHistory = (startDate?: Date, endDate?: Date, selectedMonth?: string) => {
-    if (startDate && endDate) {
-      const updatedPayments = payments.filter(p => {
+  const handleClearHistory = async (startDate?: Date, endDate?: Date, selectedMonth?: string) => {
+    if (!authUser) return;
+  
+    const paymentsToClear = payments.filter(p => {
+      if (startDate && endDate) {
         const paymentDate = parseISO(p.date);
-        return !isWithinInterval(paymentDate, { start: startDate, end: endDate });
+        return isWithinInterval(paymentDate, { start: startDate, end: endDate });
+      }
+      if (selectedMonth && selectedMonth !== 'all') {
+        const paymentMonth = parseISO(p.date).toISOString().slice(0, 7);
+        return paymentMonth === selectedMonth;
+      }
+      if (!startDate && !endDate && !selectedMonth) {
+        // Clear all condition
+        return true;
+      }
+      return false;
+    });
+
+    if (paymentsToClear.length > 0) {
+      const batch = writeBatch(db);
+      paymentsToClear.forEach(p => {
+        const docRef = doc(db, 'payments', p.id);
+        batch.delete(docRef);
       });
-      setPayments(updatedPayments);
-      localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-    } else if (selectedMonth && selectedMonth !== 'all') {
-        const updatedPayments = payments.filter(p => {
-            const paymentMonth = parseISO(p.date).toISOString().slice(0, 7);
-            return paymentMonth !== selectedMonth;
-        });
-        setPayments(updatedPayments);
-        localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-    } else {
-      setPayments([]);
-      localStorage.removeItem('billBuddyPayments');
+      await batch.commit();
+      await fetchPayments(authUser.uid); // Re-fetch payments
     }
   };
-
 
   const calculateServiceCharge = (amount: number): number => {
     for (const rule of settings.serviceCharges) {
@@ -252,7 +274,7 @@ export default function HomePage() {
   };
 
   const handleShowPreview = (data: Bill) => {
-    if (!selectedUtility) return;
+    if (!selectedUtility || !authUser) return;
 
     const userId = getUserIdByPhone(data.phoneNo, payments) || generateNewUserId(payments);
     const transactionNo = generateNewTransactionNo(payments);
@@ -260,40 +282,45 @@ export default function HomePage() {
     const serviceCharge = calculateServiceCharge(data.amount);
 
     const newPaymentData: Payment = {
-      id: `${data.accountNo}-${new Date().getTime()}`,
+      id: `${data.accountNo}-${new Date().getTime()}`, // This ID is temporary client-side
       userId: userId,
       transactionNo: transactionNo,
       utility: selectedUtility,
       date: new Date().toISOString(),
       status: 'Pending',
       serviceCharge: serviceCharge,
+      ownerUid: authUser.uid, // Add owner UID
       ...data,
     };
     setPreviewData(newPaymentData);
   };
 
-  const handleConfirmAndPrint = (paymentData: Payment) => {
-    if (!payments.some(p => p.id === paymentData.id)) {
-      const finalPayment = { ...paymentData, status: 'Pending' as 'Pending' };
+  const handleConfirmAndPrint = async (paymentData: Payment) => {
+    if (!authUser) return;
+
+    try {
+      // Add to firestore
+      const { id, ...paymentToSave } = paymentData;
+      const docRef = await addDoc(collection(db, "payments"), paymentToSave);
+      
+      const finalPayment = { ...paymentData, id: docRef.id, status: 'Pending' as 'Pending' };
+
+      // Update local state
       const updatedPayments = [finalPayment, ...payments];
       setPayments(updatedPayments);
-      localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
+
       setPaymentForPrint(finalPayment);
-    } else {
-       const updatedPayments = payments.map(p => p.id === paymentData.id ? paymentData : p);
-       setPayments(updatedPayments);
-       localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-       setPaymentForPrint(paymentData);
-    }
+      setIsPrinting(true);
+      setPreviewData(null);
+      setSelectedUtility(null);
     
-    setIsPrinting(true);
-    setPreviewData(null);
-    setSelectedUtility(null);
-    
-    if (settings.sendSmsOnConfirm) {
-        const message = `Dear ${paymentData.accountName}, Thank you for your payment of LKR ${paymentData.amount.toFixed(2)} for your ${paymentData.utility} bill. Your Transaction No is ${paymentData.transactionNo}. - ${settings.shopDetails.shopName}`;
-        const smsUrl = `sms:${paymentData.phoneNo}?body=${encodeURIComponent(message)}`;
-        window.location.href = smsUrl;
+      if (settings.sendSmsOnConfirm) {
+          const message = `Dear ${paymentData.accountName}, Thank you for your payment of LKR ${paymentData.amount.toFixed(2)} for your ${paymentData.utility} bill. Your Transaction No is ${paymentData.transactionNo}. - ${settings.shopDetails.shopName}`;
+          const smsUrl = `sms:${paymentData.phoneNo}?body=${encodeURIComponent(message)}`;
+          window.location.href = smsUrl;
+      }
+    } catch (error) {
+      console.error("Error adding document: ", error);
     }
   };
   
@@ -306,14 +333,23 @@ export default function HomePage() {
     setPreviewData(null);
   }
 
-  const handleAddReference = (paymentId: string, referenceNo: string) => {
-    const updatedPayments = payments.map(p => 
-      p.id === paymentId 
-        ? { ...p, status: 'Paid' as 'Paid', referenceNo: referenceNo } 
-        : p
-    );
-    setPayments(updatedPayments);
-    localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
+  const handleAddReference = async (paymentId: string, referenceNo: string) => {
+    try {
+      const paymentDocRef = doc(db, 'payments', paymentId);
+      await updateDoc(paymentDocRef, {
+        status: 'Paid',
+        referenceNo: referenceNo,
+      });
+
+      const updatedPayments = payments.map(p => 
+        p.id === paymentId 
+          ? { ...p, status: 'Paid' as 'Paid', referenceNo: referenceNo } 
+          : p
+      );
+      setPayments(updatedPayments);
+    } catch (error) {
+      console.error("Error updating payment: ", error);
+    }
   };
   
   const handleLogout = async () => {
@@ -397,7 +433,19 @@ export default function HomePage() {
           </header>
 
           <AnimatePresence mode="wait">
-            {selectedUtility ? (
+            {isLoadingPayments ? (
+               <motion.div
+                key="loading"
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={{ duration: 0.3 }}
+                className="w-full flex justify-center items-center h-64"
+               >
+                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
+               </motion.div>
+            ) : selectedUtility ? (
               <motion.div
                 key="form"
                 initial="initial"
@@ -495,3 +543,5 @@ export default function HomePage() {
     </>
   );
 }
+
+    
