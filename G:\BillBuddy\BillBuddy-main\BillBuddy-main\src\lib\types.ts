@@ -52,9 +52,8 @@ export type ShopDetails = {
 export type UserRole = 'admin' | 'user';
 
 export type User = {
-  id: string;
-  username: string;
-  password?: string;
+  uid: string;
+  email: string | null;
   role: UserRole;
 };
 
@@ -65,7 +64,6 @@ export type Settings = {
   paymentLinks: UtilityPaymentLinks;
   serviceCharges: ServiceChargeRule[];
   shopDetails: ShopDetails;
-  users: User[];
   showBalanceCalculator: boolean;
   printSize: PrintSize;
   sendSmsOnConfirm: boolean;

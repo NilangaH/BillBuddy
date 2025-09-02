@@ -1,4 +1,4 @@
-import type { Settings, ShopDetails, UtilityLogos, UtilityPaymentLinks, User } from './types';
+import type { Settings, ShopDetails, UtilityLogos, UtilityPaymentLinks } from './types';
 
 export const getDefaultLogos = (): UtilityLogos => ({
   LECO: 'https://placehold.co/40x40.png',
@@ -19,21 +19,6 @@ export const getDefaultShopDetails = (): ShopDetails => ({
   phoneNo: '011-1234567',
   email: 'shop@billbuddy.com',
 });
-
-export const getDefaultUsers = (): User[] => ([
-  {
-    id: 'user-1',
-    username: 'admin',
-    password: 'password',
-    role: 'admin',
-  },
-  {
-    id: 'user-2',
-    username: 'user',
-    password: 'password',
-    role: 'user',
-  }
-]);
 
 export const DEFAULT_SETTINGS: Settings = {
   logos: getDefaultLogos(),
@@ -62,7 +47,6 @@ export const DEFAULT_SETTINGS: Settings = {
     },
   ],
   shopDetails: getDefaultShopDetails(),
-  users: getDefaultUsers(),
   showBalanceCalculator: false,
   printSize: 'A5',
   sendSmsOnConfirm: false,

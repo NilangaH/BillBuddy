@@ -20,7 +20,6 @@ export default function LoginPage() {
         const mergedSettings: Settings = {
           ...DEFAULT_SETTINGS,
           ...parsedSettings,
-          users: parsedSettings.users || DEFAULT_SETTINGS.users, // Ensure users are loaded
         };
         setSettings(mergedSettings);
       } catch (e) {
@@ -31,9 +30,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  const handleLoginSuccess = (userRole: string) => {
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('userRole', userRole);
+  const handleLoginSuccess = () => {
     router.push('/');
   };
 
@@ -58,7 +55,7 @@ export default function LoginPage() {
             Please log in to continue.
             </p>
         </header>
-        <LoginForm onLoginSuccess={handleLoginSuccess} users={settings.users} />
+        <LoginForm onLoginSuccess={handleLoginSuccess} />
       </div>
     </div>
   );

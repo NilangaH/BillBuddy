@@ -9,43 +9,45 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, User as UserIcon, KeyRound } from 'lucide-react';
-import type { User } from '@/lib/types';
+import { AlertCircle, Mail, KeyRound } from 'lucide-react';
+import { auth } from '@/lib/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 
 const loginSchema = z.object({
-  username: z.string().min(1, 'Username is required.'),
-  password: z.string().min(1, 'Password is required.'),
+  email: z.string().email('Please enter a valid email address.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 interface LoginFormProps {
-  onLoginSuccess: (role: string) => void;
-  users: User[];
+  onLoginSuccess: () => void;
 }
 
-export function LoginForm({ onLoginSuccess, users }: LoginFormProps) {
+export function LoginForm({ onLoginSuccess }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: '',
+      email: '',
       password: '',
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    const foundUser = users.find(
-      (user) => user.username === data.username && user.password === data.password
-    );
-
-    if (foundUser) {
-      setError(null);
-      onLoginSuccess(foundUser.role);
-    } else {
-      setError('Invalid username or password. Please try again.');
+  const onSubmit = async (data: LoginFormValues) => {
+    setError(null);
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      onLoginSuccess();
+    } catch (error: any) {
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        setError('Invalid email or password. Please try again.');
+      } else {
+        setError('An unexpected error occurred. Please try again later.');
+        console.error(error);
+      }
     }
   };
 
@@ -69,14 +71,14 @@ export function LoginForm({ onLoginSuccess, users }: LoginFormProps) {
             )}
             <FormField
               control={form.control}
-              name="username"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Username</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <div className="relative">
-                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <FormControl>
-                      <Input placeholder="admin" {...field} className="pl-10" />
+                      <Input placeholder="user@example.com" {...field} className="pl-10" />
                     </FormControl>
                   </div>
                   <FormMessage />

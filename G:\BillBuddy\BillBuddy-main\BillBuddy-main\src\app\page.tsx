@@ -14,11 +14,13 @@ import { BillPreview } from '@/components/bill-preview';
 import { PrintableReceipt } from '@/components/printable-receipt';
 import { SettingsDialog } from '@/components/settings-dialog';
 import { Button } from '@/components/ui/button';
-import type { Utility, Bill, Payment, Settings, UserRole } from '@/lib/types';
+import type { Utility, Bill, Payment, Settings, User as AuthUser } from '@/lib/types';
 import { Settings as SettingsIcon, History, Loader2, LogOut } from 'lucide-react';
 import { isToday, parseISO, isWithinInterval } from 'date-fns';
 import { DEFAULT_SETTINGS } from '@/lib/config';
 import Image from 'next/image';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 function getUserIdByPhone(phoneNo: string, payments: Payment[]): string | null {
   const existingPayment = payments.find(p => p.phoneNo === phoneNo);
@@ -57,8 +59,8 @@ function generateNewTransactionNo(payments: Payment[]): string {
 
 export default function HomePage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [selectedUtility, setSelectedUtility] = useState<Utility | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [previewData, setPreviewData] = useState<Payment | null>(null);
@@ -71,19 +73,27 @@ export default function HomePage() {
   
   // Check for authentication
   useEffect(() => {
-    const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    if (loggedIn) {
-      setIsAuthenticated(true);
-      const role = localStorage.getItem('userRole') as UserRole | null;
-      setUserRole(role);
-    } else {
-      router.push('/login');
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAuthUser({
+          uid: user.uid,
+          email: user.email,
+          role: 'admin', // For now, all logged in users are admins
+        });
+      } else {
+        setAuthUser(null);
+        router.push('/login');
+      }
+      setIsLoadingAuth(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [router]);
 
   // Load settings and payments from localStorage on initial render
   useEffect(() => {
-    if (isAuthenticated) {
+    if (authUser) {
       const storedPayments = localStorage.getItem('billBuddyPayments');
       if (storedPayments) {
         try {
@@ -105,7 +115,6 @@ export default function HomePage() {
             paymentLinks: { ...DEFAULT_SETTINGS.paymentLinks, ...(parsedSettings.paymentLinks || {}) },
             serviceCharges: parsedSettings.serviceCharges || DEFAULT_SETTINGS.serviceCharges,
             shopDetails: { ...DEFAULT_SETTINGS.shopDetails, ...(parsedSettings.shopDetails || {}) },
-            users: parsedSettings.users || DEFAULT_SETTINGS.users,
             printSize: parsedSettings.printSize || DEFAULT_SETTINGS.printSize,
             showBalanceCalculator: parsedSettings.showBalanceCalculator || false,
             sendSmsOnConfirm: parsedSettings.sendSmsOnConfirm || false,
@@ -118,7 +127,7 @@ export default function HomePage() {
         setSettings(DEFAULT_SETTINGS);
       }
     }
-  }, [isAuthenticated]);
+  }, [authUser]);
   
   useEffect(() => {
     setUtilityLogos(settings.logos);
@@ -307,10 +316,13 @@ export default function HomePage() {
     localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userRole');
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Error signing out: ', error);
+    }
   }
 
 
@@ -333,7 +345,7 @@ export default function HomePage() {
     out: { opacity: 0, y: -20 },
   };
   
-  if (isAuthenticated === null) {
+  if (isLoadingAuth || !authUser) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -341,7 +353,7 @@ export default function HomePage() {
     );
   }
 
-  const isAdmin = userRole === 'admin';
+  const isAdmin = authUser?.role === 'admin';
 
   return (
     <>
