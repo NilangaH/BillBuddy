@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -10,8 +11,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Mail, KeyRound } from 'lucide-react';
-import { auth } from '@/lib/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 
 
 const loginSchema = z.object({
@@ -38,16 +37,11 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
 
   const onSubmit = async (data: LoginFormValues) => {
     setError(null);
-    try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+    // This is a placeholder for real authentication
+    if (data.email === 'admin@billbuddy.com' && data.password === 'password') {
       onLoginSuccess();
-    } catch (error: any) {
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        setError('Invalid email or password. Please try again.');
-      } else {
-        setError('An unexpected error occurred. Please try again later.');
-        console.error(error);
-      }
+    } else {
+      setError('Invalid email or password. Please try again.');
     }
   };
 

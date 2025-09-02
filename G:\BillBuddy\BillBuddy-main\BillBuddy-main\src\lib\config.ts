@@ -1,3 +1,4 @@
+
 import type { Settings, ShopDetails, UtilityLogos, UtilityPaymentLinks } from './types';
 
 export const getDefaultLogos = (): UtilityLogos => ({
