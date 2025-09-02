@@ -11,17 +11,6 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -84,7 +73,11 @@ export function ReportsView({
       const monthMatch = selectedMonth === 'all' || format(paymentDate, 'yyyy-MM') === selectedMonth;
       
       const searchMatch = !searchTerm ||
-        payment.transactionNo.toLowerCase().includes(searchTerm.toLowerCase());
+        payment.transactionNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.accountNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.accountName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        payment.phoneNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (payment.referenceNo && payment.referenceNo.toLowerCase().includes(searchTerm.toLowerCase()));
 
       return typeMatch && dateMatch && monthMatch && searchMatch;
     });
@@ -194,7 +187,7 @@ export function ReportsView({
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="text"
-                    placeholder="Search by Txn No..."
+                    placeholder="Search..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 w-full sm:w-auto"

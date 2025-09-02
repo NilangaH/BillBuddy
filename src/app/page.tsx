@@ -6,7 +6,22 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  Timestamp,
+  orderBy,
+  limit
+} from 'firebase/firestore';
 
+import { auth, db } from '@/lib/firebase';
 import { UtilitySelector } from '@/components/utility-selector';
 import { BillForm } from '@/components/bill-form';
 import { TodayPayments } from '@/components/today-payments';
@@ -16,15 +31,11 @@ import { PrintableReceipt } from '@/components/printable-receipt';
 import { SettingsDialog } from '@/components/settings-dialog';
 import { Button } from '@/components/ui/button';
 import type { Utility, Bill, Payment, Settings, UserRole } from '@/lib/types';
-import { Settings as SettingsIcon, History, Loader2, Home, LogOut, ShieldCheck } from 'lucide-react';
-import { isToday, parseISO, isWithinInterval } from 'date-fns';
+import { Settings as SettingsIcon, History, Loader2, LogOut } from 'lucide-react';
+import { isToday, parseISO, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { DEFAULT_SETTINGS } from '@/lib/config';
 import Image from 'next/image';
-
-function getUserIdByPhone(phoneNo: string, payments: Payment[]): string | null {
-  const existingPayment = payments.find(p => p.phoneNo === phoneNo);
-  return existingPayment ? existingPayment.userId : null;
-}
+import { useToast } from '@/hooks/use-toast';
 
 function generateNewUserId(payments: Payment[]): string {
   if (!payments || payments.length === 0) return 'NH001';
@@ -41,27 +52,38 @@ function generateNewUserId(payments: Payment[]): string {
   return `NH${String(newIdNumber).padStart(3, '0')}`;
 }
 
-function generateNewTransactionNo(payments: Payment[]): string {
-  if (!payments || payments.length === 0) return 'NHTR0001';
+async function generateNewTransactionNo(uid: string): Promise<string> {
+    if (!uid) return 'NHTR0001';
 
-  const existingTxnNos = payments.map(p => p.transactionNo);
-  const numericIds = existingTxnNos
-    .filter(id => id && id.startsWith('NHTR'))
-    .map(id => parseInt(id.substring(4), 10))
-    .filter(id => !isNaN(id));
+    const paymentsRef = collection(db, 'payments');
+    const q = query(
+        paymentsRef, 
+        where("uid", "==", uid),
+        orderBy("transactionNo", "desc"),
+        limit(1)
+    );
 
-  const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 0;
-  const newIdNumber = maxId + 1;
-  
-  return `NHTR${String(newIdNumber).padStart(4, '0')}`;
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+        return 'NHTR0001';
+    } else {
+        const lastTxnNo = querySnapshot.docs[0].data().transactionNo;
+        const numericId = parseInt(lastTxnNo.substring(4), 10);
+        const newIdNumber = numericId + 1;
+        return `NHTR${String(newIdNumber).padStart(4, '0')}`;
+    }
 }
+
 
 export default function HomePage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [isPermanentlyActivated, setIsPermanentlyActivated] = useState<boolean>(false);
-  const [isTrial, setIsTrial] = useState<boolean>(false);
+  const { toast } = useToast();
+  
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
+
   const [selectedUtility, setSelectedUtility] = useState<Utility | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [previewData, setPreviewData] = useState<Payment | null>(null);
@@ -72,77 +94,73 @@ export default function HomePage() {
   const [isPrinting, setIsPrinting] = useState(false);
   const [paymentForPrint, setPaymentForPrint] = useState<Payment | null>(null);
   
-  // Check for authentication
+  // Check auth state
   useEffect(() => {
-    const loggedIn = localStorage.getItem('isLoggedIn') === 'true';
-    const isActivated = localStorage.getItem('isActivated') === 'true';
-    const isTrialPeriod = localStorage.getItem('isTrial') === 'true';
-    
-    if (loggedIn && (isActivated || isTrialPeriod)) {
-      setIsAuthenticated(true);
-      setIsPermanentlyActivated(isActivated);
-      const role = localStorage.getItem('userRole') as UserRole | null;
-      setUserRole(role);
-      setIsTrial(isTrialPeriod);
-    } else {
-      router.push('/login');
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setCurrentUser(user);
+        const role = localStorage.getItem('userRole') as UserRole | 'admin';
+        setUserRole(role);
+      } else {
+        router.push('/login');
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, [router]);
 
-  // Load settings and payments from localStorage on initial render
-  useEffect(() => {
-    if (isAuthenticated) {
-      const storedPayments = localStorage.getItem('billBuddyPayments');
-      if (storedPayments) {
-        try {
-          setPayments(JSON.parse(storedPayments));
-        } catch (e) {
-          setPayments([]);
-        }
-      }
 
-      const storedSettings = localStorage.getItem('billBuddySettings');
-      if (storedSettings) {
-        try {
-          const parsedSettings = JSON.parse(storedSettings);
-          
-          // Merge users to ensure defaults are present
-          const defaultUsers = DEFAULT_SETTINGS.users;
-          const savedUsers = parsedSettings.users || [];
-          const combinedUsers = [...defaultUsers];
-          savedUsers.forEach((savedUser: any) => {
-            if (!combinedUsers.some(u => u.username === savedUser.username)) {
-              combinedUsers.push(savedUser);
-            }
-          });
-
-          const mergedSettings: Settings = {
-            ...DEFAULT_SETTINGS,
-            ...parsedSettings,
-            logos: { ...DEFAULT_SETTINGS.logos, ...parsedSettings.logos },
-            paymentLinks: { ...DEFAULT_SETTINGS.paymentLinks, ...(parsedSettings.paymentLinks || {}) },
-            serviceCharges: parsedSettings.serviceCharges || DEFAULT_SETTINGS.serviceCharges,
-            shopDetails: { ...DEFAULT_SETTINGS.shopDetails, ...(parsedSettings.shopDetails || {}) },
-            users: combinedUsers,
-            printSize: parsedSettings.printSize || DEFAULT_SETTINGS.printSize,
-            showBalanceCalculator: parsedSettings.showBalanceCalculator || false,
-            sendSmsOnConfirm: parsedSettings.sendSmsOnConfirm || false,
-          };
-          setSettings(mergedSettings);
-        } catch (e) {
-          setSettings(DEFAULT_SETTINGS);
-        }
-      } else {
-        setSettings(DEFAULT_SETTINGS);
-      }
+  // Fetch payments from Firestore
+  const fetchPayments = useCallback(async () => {
+    if (!currentUser) return;
+    try {
+      const paymentsRef = collection(db, 'payments');
+      const q = query(paymentsRef, where("uid", "==", currentUser.uid), orderBy("date", "desc"));
+      const querySnapshot = await getDocs(q);
+      const firestorePayments = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+              ...data,
+              id: doc.id,
+              date: (data.date as Timestamp).toDate().toISOString(),
+          } as Payment;
+      });
+      setPayments(firestorePayments);
+    } catch (error) {
+      console.error("Error fetching payments: ", error);
+      toast({ variant: 'destructive', title: "Error", description: "Could not fetch payment history."});
     }
-  }, [isAuthenticated]);
+  }, [currentUser, toast]);
+
+  // Load settings and fetch payments
+  useEffect(() => {
+    const storedSettings = localStorage.getItem('billBuddySettings');
+    if (storedSettings) {
+        try {
+            const parsedSettings = JSON.parse(storedSettings);
+            const mergedSettings: Settings = {
+                ...DEFAULT_SETTINGS,
+                ...parsedSettings,
+            };
+            setSettings(mergedSettings);
+        } catch (e) {
+            setSettings(DEFAULT_SETTINGS);
+        }
+    } else {
+        setSettings(DEFAULT_SETTINGS);
+    }
+
+    if (currentUser) {
+        fetchPayments();
+    }
+  }, [currentUser, fetchPayments]);
   
   useEffect(() => {
     setUtilityLogos(settings.logos);
   }, [settings]);
   
   const generateAndShowPdf = async () => {
+      // ... (existing PDF generation logic, no changes needed here)
       const receiptElement = document.getElementById('printable-receipt-content');
       if (!receiptElement) {
           console.error("Printable receipt element not found!");
@@ -153,33 +171,22 @@ export default function HomePage() {
 
       try {
           const canvas = await html2canvas(receiptElement, {
-              scale: 2, // Higher scale for better quality
+              scale: 2,
               useCORS: true,
               allowTaint: true,
               backgroundColor: '#ffffff',
           });
           
           const imgData = canvas.toDataURL('image/png');
-          
           let pdf: jsPDF;
-
           if (settings.printSize === '80mm') {
             const pdfWidth = 80;
             const imgProps = { width: canvas.width, height: canvas.height };
             const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            pdf = new jsPDF({
-              orientation: 'portrait',
-              unit: 'mm',
-              format: [pdfWidth, pdfHeight]
-            });
+            pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
           } else {
-            // A5 size
-            pdf = new jsPDF({
-              orientation: 'portrait',
-              unit: 'mm',
-              format: 'a5',
-            });
+            pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const imgProps = { width: canvas.width, height: canvas.height };
             const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
@@ -191,11 +198,7 @@ export default function HomePage() {
           
           const printWindow = window.open(pdfUrl, '_blank');
           if (printWindow) {
-            printWindow.onload = () => {
-              setTimeout(() => {
-                printWindow.print();
-              }, 500); // A short delay can help ensure content is loaded
-            };
+            printWindow.onload = () => { setTimeout(() => { printWindow.print(); }, 500); };
           }
 
       } catch (error) {
@@ -208,7 +211,6 @@ export default function HomePage() {
 
   useEffect(() => {
     if (paymentForPrint && isPrinting) {
-      // The generate function is called in useEffect to ensure the DOM is updated.
       generateAndShowPdf();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -221,29 +223,36 @@ export default function HomePage() {
     setIsSettingsOpen(false);
   };
   
-  const handleClearHistory = (startDate?: Date, endDate?: Date, selectedMonth?: string) => {
-    if (startDate && endDate) {
-      const updatedPayments = payments.filter(p => {
-        const paymentDate = parseISO(p.date);
-        return !isWithinInterval(paymentDate, { start: startDate, end: endDate });
-      });
-      setPayments(updatedPayments);
-      localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-    } else if (selectedMonth && selectedMonth !== 'all') {
-        const updatedPayments = payments.filter(p => {
-            const paymentMonth = parseISO(p.date).toISOString().slice(0, 7);
-            return paymentMonth !== selectedMonth;
-        });
-        setPayments(updatedPayments);
-        localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-    } else {
-      // Clear all
-      setPayments([]);
-      localStorage.removeItem('billBuddyPayments');
-    }
-    // No need to close the dialog here, let the user do it
-  };
+  const handleClearHistory = async (startDate?: Date, endDate?: Date, selectedMonth?: string) => {
+    if (!currentUser) return;
+    toast({ title: "Deleting History...", description: "Please wait." });
+    try {
+        let paymentsToDelete = payments;
+        if (startDate && endDate) {
+            paymentsToDelete = payments.filter(p => {
+                const paymentDate = parseISO(p.date);
+                return isWithinInterval(paymentDate, { start: startDate, end: endDate });
+            });
+        } else if (selectedMonth && selectedMonth !== 'all') {
+            paymentsToDelete = payments.filter(p => {
+                const paymentMonth = parseISO(p.date).toISOString().slice(0, 7);
+                return paymentMonth === selectedMonth;
+            });
+        }
+        
+        for (const payment of paymentsToDelete) {
+            const paymentRef = doc(db, 'payments', payment.id);
+            await deleteDoc(paymentRef);
+        }
 
+        await fetchPayments(); // Refresh the list
+        toast({ title: "Success", description: "Selected payment history has been cleared." });
+
+    } catch (error) {
+        console.error("Error clearing history:", error);
+        toast({ variant: 'destructive', title: "Error", description: "Could not clear payment history." });
+    }
+  };
 
   const calculateServiceCharge = (amount: number): number => {
     for (const rule of settings.serviceCharges) {
@@ -264,16 +273,17 @@ export default function HomePage() {
     setViewMode('dashboard');
   };
 
-  const handleShowPreview = (data: Bill) => {
-    if (!selectedUtility) return;
+  const handleShowPreview = async (data: Bill) => {
+    if (!selectedUtility || !currentUser) return;
 
     const userId = getUserIdByPhone(data.phoneNo, payments) || generateNewUserId(payments);
-    const transactionNo = generateNewTransactionNo(payments);
+    const transactionNo = await generateNewTransactionNo(currentUser.uid);
     
     const serviceCharge = calculateServiceCharge(data.amount);
 
     const newPaymentData: Payment = {
-      id: `${data.accountNo}-${new Date().getTime()}`,
+      id: `${data.accountNo}-${new Date().getTime()}`, // Temp ID, will be replaced by Firestore ID
+      uid: currentUser.uid,
       userId: userId,
       transactionNo: transactionNo,
       utility: selectedUtility,
@@ -285,60 +295,79 @@ export default function HomePage() {
     setPreviewData(newPaymentData);
   };
 
-  const handleConfirmAndPrint = (paymentData: Payment) => {
-    // Add to payments list if it's not already there
-    if (!payments.some(p => p.id === paymentData.id)) {
-      const finalPayment = { ...paymentData, status: 'Pending' as 'Pending' };
-      const updatedPayments = [finalPayment, ...payments];
-      setPayments(updatedPayments);
-      localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-      setPaymentForPrint(finalPayment);
-    } else {
-      // If it exists, it might just be an update (e.g. adding paidAmount), so update it
-       const updatedPayments = payments.map(p => p.id === paymentData.id ? paymentData : p);
-       setPayments(updatedPayments);
-       localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
-       setPaymentForPrint(paymentData);
-    }
+  const handleConfirmAndPrint = async (paymentData: Payment) => {
+    if (!currentUser) return;
     
-    setIsPrinting(true); // This will trigger the useEffect
-    setPreviewData(null);
-    setSelectedUtility(null); // Reset to home
-    
-    if (settings.sendSmsOnConfirm) {
-        const message = `Dear ${paymentData.accountName}, Thank you for your payment of LKR ${paymentData.amount.toFixed(2)} for your ${paymentData.utility} bill. Your Transaction No is ${paymentData.transactionNo}. - ${settings.shopDetails.shopName}`;
-        const smsUrl = `sms:${paymentData.phoneNo}?body=${encodeURIComponent(message)}`;
-        window.location.href = smsUrl;
+    try {
+        const { id, ...paymentToSave } = paymentData;
+        const finalPaymentData = {
+          ...paymentToSave,
+          date: Timestamp.fromDate(new Date(paymentData.date)),
+        };
+
+        const docRef = await addDoc(collection(db, "payments"), finalPaymentData);
+        
+        const newPaymentWithId = { ...paymentData, id: docRef.id };
+        setPayments(prev => [newPaymentWithId, ...prev]);
+        setPaymentForPrint(newPaymentWithId);
+        
+        setIsPrinting(true);
+        setPreviewData(null);
+        setSelectedUtility(null);
+        
+        if (settings.sendSmsOnConfirm) {
+            const message = `Dear ${paymentData.accountName}, Thank you for your payment of LKR ${paymentData.amount.toFixed(2)} for your ${paymentData.utility} bill. Your Transaction No is ${paymentData.transactionNo}. - ${settings.shopDetails.shopName}`;
+            const smsUrl = `sms:${paymentData.phoneNo}?body=${encodeURIComponent(message)}`;
+            window.location.href = smsUrl;
+        }
+
+    } catch (error) {
+        console.error("Error adding document: ", error);
+        toast({ variant: 'destructive', title: "Error", description: "Could not save payment. Please try again." });
     }
   };
   
   const handleReprint = (payment: Payment) => {
     setPaymentForPrint(payment);
-    setIsPrinting(true); // This will trigger the useEffect
+    setIsPrinting(true);
   };
 
   const handleClosePreview = () => {
     setPreviewData(null);
   }
 
-  const handleAddReference = (paymentId: string, referenceNo: string) => {
-    const updatedPayments = payments.map(p => 
-      p.id === paymentId 
-        ? { ...p, status: 'Paid' as 'Paid', referenceNo: referenceNo } 
-        : p
-    );
-    setPayments(updatedPayments);
-    localStorage.setItem('billBuddyPayments', JSON.stringify(updatedPayments));
+  const handleAddReference = async (paymentId: string, referenceNo: string) => {
+    try {
+        const paymentRef = doc(db, 'payments', paymentId);
+        await updateDoc(paymentRef, {
+            status: 'Paid',
+            referenceNo: referenceNo,
+        });
+        
+        const updatedPayments = payments.map(p => 
+          p.id === paymentId 
+            ? { ...p, status: 'Paid' as 'Paid', referenceNo: referenceNo } 
+            : p
+        );
+        setPayments(updatedPayments);
+        toast({ title: "Success", description: "Payment marked as complete." });
+
+    } catch (error) {
+        console.error("Error updating payment:", error);
+        toast({ variant: 'destructive', title: "Error", description: "Could not update payment status." });
+    }
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem('isLoggedIn');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('isTrial');
-    localStorage.removeItem('isActivated');
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+        await signOut(auth);
+        localStorage.removeItem('userRole');
+        router.push('/login');
+    } catch (error) {
+        console.error("Logout Error:", error);
+        toast({ variant: 'destructive', title: "Logout Failed", description: "Could not log out. Please try again." });
+    }
   }
-
 
   const todaysPayments = useMemo(() => {
     return payments.filter(payment => isToday(new Date(payment.date)));
@@ -359,7 +388,7 @@ export default function HomePage() {
     out: { opacity: 0, y: -20 },
   };
   
-  if (isAuthenticated === null) {
+  if (loading || !currentUser) {
     return (
       <div className="flex h-screen w-full items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -386,15 +415,12 @@ export default function HomePage() {
               <h1 className="font-headline text-4xl font-bold tracking-tight text-foreground">
                 {settings.shopDetails.shopName}
               </h1>
-              {isPermanentlyActivated && (
-                <ShieldCheck className="h-7 w-7 text-green-500" />
-              )}
             </div>
             <p className="text-muted-foreground mt-2">
               Your friendly neighborhood bill payment assistant.
             </p>
             <div className="absolute top-0 right-0 flex gap-2">
-              {isAdmin && !isTrial && (
+              {isAdmin && (
                 <>
                   <Button variant="ghost" size="icon" onClick={() => setViewMode('reports')}>
                     <History />

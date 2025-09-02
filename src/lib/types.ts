@@ -24,6 +24,7 @@ export type Payment = Bill & {
   transactionNo: string;
   referenceNo?: string;
   paidAmount?: number;
+  uid?: string; // Add uid for Firestore multi-tenancy
 };
 
 export type UtilityLogos = {
@@ -54,6 +55,7 @@ export type UserRole = 'admin' | 'user';
 
 export type User = {
   id: string;
+  uid?: string; // Add uid for Firebase Auth
   username: string;
   password?: string;
   role: UserRole;

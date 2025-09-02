@@ -10,99 +10,39 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, User as UserIcon, KeyRound, Fingerprint } from 'lucide-react';
-import type { User } from '@/lib/types';
+import { AlertCircle, Mail, KeyRound } from 'lucide-react';
 
 
 const loginSchema = z.object({
-  username: z.string().min(1, 'Username is required.'),
-  password: z.string().min(1, 'Password is required.'),
-});
-const licenseSchema = z.object({
-  licenseKey: z.string().min(1, 'License key is required.'),
+  email: z.string().email('Please enter a valid email address.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
-type LicenseFormValues = z.infer<typeof licenseSchema>;
-
 
 interface LoginFormProps {
-  onLoginSuccess?: (role: string) => void;
-  users?: User[];
-  onLicenseSubmit?: (key: string) => void;
-  isLicenseFlow?: boolean;
+  onLoginSuccess: (email: string, password: string) => Promise<any>;
 }
 
-export function LoginForm({ onLoginSuccess, users, onLicenseSubmit, isLicenseFlow = false }: LoginFormProps) {
+export function LoginForm({ onLoginSuccess }: LoginFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      username: '',
+      email: '',
       password: '',
     },
   });
 
-  const licenseForm = useForm<LicenseFormValues>({
-    resolver: zodResolver(licenseSchema),
-    defaultValues: {
-      licenseKey: '',
-    }
-  });
-
-  const onSubmit = (data: LoginFormValues) => {
-    if (!onLoginSuccess || !users) return;
-
-    const foundUser = users.find(
-      (user) => user.username === data.username && user.password === data.password
-    );
-
-    if (foundUser) {
-      setError(null);
-      onLoginSuccess(foundUser.role);
-    } else {
-      setError('Invalid username or password. Please try again.');
+  const onSubmit = async (data: LoginFormValues) => {
+    setError(null);
+    try {
+      await onLoginSuccess(data.email, data.password);
+    } catch (e: any) {
+        setError(e.message || 'An unexpected error occurred.');
     }
   };
-
-  const onLicenseFormSubmit = (data: LicenseFormValues) => {
-    if (onLicenseSubmit) {
-      onLicenseSubmit(data.licenseKey);
-    }
-  };
-
-  if (isLicenseFlow) {
-    return (
-      <Form {...licenseForm}>
-        <form onSubmit={licenseForm.handleSubmit(onLicenseFormSubmit)}>
-            <FormField
-              control={licenseForm.control}
-              name="licenseKey"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>License Key</FormLabel>
-                  <div className="relative">
-                    <Fingerprint className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <FormControl>
-                      <Input placeholder="Enter license key" {...field} className="pl-10" />
-                    </FormControl>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <Button 
-                type="submit" 
-                className="w-full hover:opacity-90 mt-4"
-                disabled={licenseForm.formState.isSubmitting}
-            >
-              {licenseForm.formState.isSubmitting ? 'Activating...' : 'Activate'}
-            </Button>
-        </form>
-      </Form>
-    )
-  }
 
   return (
     <Card className="shadow-lg">
@@ -124,14 +64,14 @@ export function LoginForm({ onLoginSuccess, users, onLicenseSubmit, isLicenseFlo
             )}
             <FormField
               control={form.control}
-              name="username"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Username</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <div className="relative">
-                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <FormControl>
-                      <Input placeholder="admin" {...field} className="pl-10" />
+                      <Input placeholder="user@example.com" {...field} className="pl-10" />
                     </FormControl>
                   </div>
                   <FormMessage />
