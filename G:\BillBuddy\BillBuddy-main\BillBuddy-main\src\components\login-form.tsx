@@ -21,7 +21,7 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 interface LoginFormProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess: (email: string, password: string) => Promise<any>;
 }
 
 export function LoginForm({ onLoginSuccess }: LoginFormProps) {
@@ -37,11 +37,10 @@ export function LoginForm({ onLoginSuccess }: LoginFormProps) {
 
   const onSubmit = async (data: LoginFormValues) => {
     setError(null);
-    // This is a placeholder for real authentication
-    if (data.email === 'admin@billbuddy.com' && data.password === 'password') {
-      onLoginSuccess();
-    } else {
-      setError('Invalid email or password. Please try again.');
+    try {
+      await onLoginSuccess(data.email, data.password);
+    } catch (e: any) {
+        setError(e.message || 'An unexpected error occurred.');
     }
   };
 
